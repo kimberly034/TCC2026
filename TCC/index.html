@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SolarIntel - Sistema Inteligente de Monitoramento Solar</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+    margin:0;
+    font-family: 'Segoe UI', sans-serif;
+    background:#eef5ff;
+}
+
+header{
+    background:linear-gradient(90deg,#002b5b,#00509d);
+    color:white;
+    padding:20px;
+    text-align:center;
+}
+
+.container{
+    display:grid;
+    grid-template-columns: repeat(auto-fit,minmax(350px,1fr));
+    gap:20px;
+    padding:20px;
+}
+
+.card{
+    background:white;
+    padding:20px;
+    border-radius:15px;
+    box-shadow:0 5px 15px rgba(0,0,0,0.1);
+}
+
+h2{
+    margin-top:0;
+    color:#002b5b;
+}
+
+input{
+    width:100%;
+    padding:8px;
+    margin:8px 0;
+}
+
+button{
+    padding:10px;
+    background:#00509d;
+    color:white;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+}
+
+button:hover{
+    background:#003f7d;
+}
+
+#map{
+    height:350px;
+    border-radius:10px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+<h1>SolarIntel ☀️</h1>
+<p>Sistema Inteligente de Monitoramento Solar, Energia Fotovoltaica e Secagem Sustentável</p>
+</header>
+
+<div class="container">
+
+<div class="card">
+<h2>🌍 Mapa Interativo</h2>
+<p>Clique no mapa para obter dados solares simulados</p>
+<div id="map"></div>
+<div id="dadosLocal"></div>
+</div>
+
+<div class="card">
+<h2>🌞 Índice UV</h2>
+<div id="uvInfo">Aguardando seleção no mapa...</div>
+</div>
+
+<div class="card">
+<h2>⚡ Energia Fotovoltaica</h2>
+
+<label>Área do painel (m²)</label>
+<input type="number" id="area" value="2">
+
+<label>Eficiência (%)</label>
+<input type="number" id="eficiencia" value="18">
+
+<label>Horas de sol</label>
+<input type="number" id="horas" value="5">
+
+<button onclick="calcularEnergia()">Calcular Energia</button>
+
+<div id="resultadoEnergia"></div>
+<canvas id="graficoEnergia"></canvas>
+</div>
+
+<div class="card">
+<h2>🧺 Secagem de Roupas</h2>
+
+<label>Massa de roupas (kg)</label>
+<input type="number" id="kg" value="2">
+
+<button onclick="calcularSecagem()">Calcular Secagem</button>
+
+<div id="resultadoSecagem"></div>
+<canvas id="graficoSecagem"></canvas>
+</div>
+
+</div>
+
+<script>
+
+// ---------------- MAPA ----------------
+var map = L.map('map').setView([-14.2350,-51.9253],4);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© OpenStreetMap'
+}).addTo(map);
+
+let marcador;
+let uvGlobal = 0;
+let irradianciaGlobal = 0;
+
+map.on('click', function(e){
+
+    if(marcador) map.removeLayer(marcador);
+    marcador = L.marker(e.latlng).addTo(map);
+
+    // Simulação baseada em latitude
+    uvGlobal = Math.floor(Math.random()*11)+1;
+    irradianciaGlobal = (Math.random()*400 + 600).toFixed(0);
+
+    document.getElementById("dadosLocal").innerHTML=`
+    <strong>Latitude:</strong> ${e.latlng.lat.toFixed(2)}<br>
+    <strong>Longitude:</strong> ${e.latlng.lng.toFixed(2)}<br>
+    <strong>Irradiância estimada:</strong> ${irradianciaGlobal} W/m²
+    `;
+
+    document.getElementById("uvInfo").innerHTML=`
+    Índice UV estimado: <strong>${uvGlobal}</strong><br>
+    Classificação: ${classificarUV(uvGlobal)}
+    `;
+});
+
+function classificarUV(uv){
+    if(uv<=2) return "Baixo";
+    if(uv<=5) return "Moderado";
+    if(uv<=7) return "Alto";
+    if(uv<=10) return "Muito Alto";
+    return "Extremo";
+}
+
+// ---------------- ENERGIA ----------------
+let chartEnergia;
+
+function calcularEnergia(){
+
+    if(irradianciaGlobal==0){
+        alert("Selecione uma localização no mapa.");
+        return;
+    }
+
+    let area = parseFloat(document.getElementById("area").value);
+    let eficiencia = parseFloat(document.getElementById("eficiencia").value)/100;
+    let horas = parseFloat(document.getElementById("horas").value);
+
+    let energia = irradianciaGlobal * area * eficiencia * horas;
+    let economiaDia = (energia/1000)*0.90;
+    let economiaAno = economiaDia*365;
+
+    document.getElementById("resultadoEnergia").innerHTML=`
+    Produção diária: <strong>${energia.toFixed(2)} Wh</strong><br>
+    Economia diária: <strong>R$ ${economiaDia.toFixed(2)}</strong><br>
+    Economia anual: <strong>R$ ${economiaAno.toFixed(2)}</strong>
+    `;
+
+    if(chartEnergia) chartEnergia.destroy();
+
+    chartEnergia = new Chart(document.getElementById("graficoEnergia"),{
+        type:"bar",
+        data:{
+            labels:["Energia (Wh)","Economia Anual (R$)"],
+            datasets:[{
+                label:"Indicadores",
+                data:[energia,economiaAno]
+            }]
+        }
+    });
+}
+
+// ---------------- SECAGEM ----------------
+let chartSecagem;
+
+function calcularSecagem(){
+
+    if(uvGlobal==0){
+        alert("Selecione uma localização no mapa.");
+        return;
+    }
+
+    let kg = parseFloat(document.getElementById("kg").value);
+    let coeficiente = 0.6;
+
+    let tempo = (kg/(uvGlobal*coeficiente));
+    let consumoSecadora = 3;
+    let custoSecadora = consumoSecadora*0.90;
+
+    document.getElementById("resultadoSecagem").innerHTML=`
+    Tempo estimado ao sol: <strong>${tempo.toFixed(2)} horas</strong><br>
+    Custo médio secadora: <strong>R$ ${custoSecadora.toFixed(2)}</strong><br>
+    ${tempo<2?"Recomendado: Secagem natural ☀️":"Recomendado: Secadora ⚡"}
+    `;
+
+    if(chartSecagem) chartSecagem.destroy();
+
+    chartSecagem = new Chart(document.getElementById("graficoSecagem"),{
+        type:"line",
+        data:{
+            labels:["Tempo ao Sol (h)","Secadora (h)"],
+            datasets:[{
+                label:"Comparação",
+                data:[tempo,1.5]
+            }]
+        }
+    });
+}
+
+</script>
+
+</body>
+</html>
